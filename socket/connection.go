@@ -1,17 +1,17 @@
 package socket
 
 import (
+	"bufio"
 	"io"
 	"net"
-	"bufio"
 )
 
 type Connection struct {
-	Incomming chan []byte
-	Done chan struct{}
+	Incoming   chan []byte
+	Done       chan struct{}
 	connection net.Conn
-	reader *bufio.Reader
-	writer *bufio.Writer
+	reader     *bufio.Reader
+	writer     *bufio.Writer
 }
 
 func Connect(proto, addr string) (*Connection, error) {
@@ -24,35 +24,54 @@ func Connect(proto, addr string) (*Connection, error) {
 	w := bufio.NewWriter(c)
 
 	conn := &Connection{
-		Done: make(chan struct{}),
-		Incomming: make(chan []byte),
+		Done:       make(chan struct{}),
+		Incoming:   make(chan []byte),
 		connection: c,
-		reader: r,
-		writer: w,
+		reader:     r,
+		writer:     w,
 	}
 
 	go func() {
 		defer close(conn.Done)
-		defer c.Close()
+		defer func(c net.Conn) {
+			err := c.Close()
+			if err != nil {
+				return
+			}
+		}(c)
 		for {
 			bytes, err := conn.reader.ReadBytes('\n')
 			if err == io.EOF {
 				break
 			}
 
-			conn.Incomming <- bytes
-		}	
+			conn.Incoming <- bytes
+		}
 	}()
 
 	return conn, nil
 }
 
 func (c *Connection) Emit(bytes []byte) {
-	c.writer.Write(bytes)
-	c.writer.Write([]byte("\n"))
-	c.writer.Flush()
+	_, err := c.writer.Write(bytes)
+	if err != nil {
+		return
+	}
+
+	_, err = c.writer.Write([]byte("\n"))
+	if err != nil {
+		return
+	}
+
+	err = c.writer.Flush()
+	if err != nil {
+		return
+	}
 }
 
 func (c *Connection) Close() {
-	c.connection.Close()
+	err := c.connection.Close()
+	if err != nil {
+		return
+	}
 }

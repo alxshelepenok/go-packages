@@ -1,14 +1,14 @@
 package socket
 
 import (
-	"net"
 	"bufio"
+	"net"
 )
 
 type Socket struct {
 	listener net.Listener
-	reader *bufio.Reader
-	writer *bufio.Writer
+	reader   *bufio.Reader
+	writer   *bufio.Writer
 }
 
 func New(proto, addr string) (*Socket, error) {
@@ -27,8 +27,8 @@ func New(proto, addr string) (*Socket, error) {
 
 	sock := &Socket{
 		listener: l,
-		reader: r,
-		writer: w,
+		reader:   r,
+		writer:   w,
 	}
 
 	return sock, nil
@@ -52,11 +52,25 @@ func (s *Socket) Listen() (chan []byte, chan struct{}) {
 }
 
 func (s *Socket) Emit(bytes []byte) {
-	s.writer.Write(bytes)
-	s.writer.Write([]byte("\n"))
-	s.writer.Flush()
+	_, err := s.writer.Write(bytes)
+	if err != nil {
+		return
+	}
+
+	_, err = s.writer.Write([]byte("\n"))
+	if err != nil {
+		return
+	}
+
+	err = s.writer.Flush()
+	if err != nil {
+		return
+	}
 }
 
 func (s *Socket) Close() {
-	s.listener.Close()
+	err := s.listener.Close()
+	if err != nil {
+		return
+	}
 }
